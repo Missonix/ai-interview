@@ -1,0 +1,2228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>面试助手 - AI语音回答生成器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            height: 100vh;
+            color: #e5e5e5;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* 顶部导航栏 */
+        .top-navbar {
+            background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+            color: #f5f5f5;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            flex-shrink: 0;
+            z-index: 100;
+        }
+
+        .nav-brand {
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-tab {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: #b3b3b3;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .nav-tab:hover {
+            background: rgba(255,255,255,0.12);
+            color: #e5e5e5;
+            transform: translateY(-1px);
+        }
+
+        .nav-tab.active {
+            background: rgba(74, 222, 128, 0.15);
+            border-color: #4ade80;
+            color: #4ade80;
+        }
+
+        .nav-user-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-name {
+            color: #b3b3b3;
+            font-size: 14px;
+        }
+
+        .logout-btn {
+            padding: 8px 16px;
+            background: rgba(248, 113, 113, 0.15);
+            border: 1px solid #f87171;
+            border-radius: 6px;
+            color: #f87171;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: rgba(248, 113, 113, 0.25);
+            transform: translateY(-1px);
+        }
+
+        /* 主要内容区域 */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* 左侧配置面板 */
+        .config-sidebar {
+            width: 320px;
+            background: #252525;
+            border-right: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            transition: margin-left 0.3s ease;
+            position: relative;
+            z-index: 10;
+        }
+
+        .config-sidebar.collapsed {
+            margin-left: -280px;
+        }
+
+        .config-header {
+            padding: 20px;
+            border-bottom: 1px solid #404040;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .config-title {
+            color: #f5f5f5;
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+
+        .config-toggle {
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .config-toggle:hover {
+            color: #f5f5f5;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .config-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        /* 右侧内容区域 */
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e1e;
+            transition: margin-left 0.3s ease;
+        }
+
+        .content-area.expanded {
+            margin-left: -280px;
+        }
+
+        /* 面试辅助界面 */
+        .interview-assistant {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            padding: 24px;
+        }
+
+        .interview-assistant.active {
+            display: flex;
+        }
+
+        .assistant-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .assistant-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #f5f5f5;
+        }
+
+        .history-btn {
+            padding: 10px 20px;
+            background: rgba(96, 165, 250, 0.15);
+            border: 1px solid #60a5fa;
+            border-radius: 8px;
+            color: #60a5fa;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .history-btn:hover {
+            background: rgba(96, 165, 250, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .status-section {
+            margin-bottom: 24px;
+        }
+
+        .status-bar {
+            background: #2a2a2a;
+            padding: 16px 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 500;
+            font-size: 14px;
+            border: 1px solid #404040;
+        }
+
+        .status-bar.recording {
+            background: #2d3748;
+            color: #4ade80;
+            border-color: #4ade80;
+        }
+
+        .status-bar.processing {
+            background: #2d2a1f;
+            color: #fbbf24;
+            border-color: #fbbf24;
+        }
+
+        .status-bar.error {
+            background: #2d1b1b;
+            color: #f87171;
+            border-color: #f87171;
+        }
+
+        .record-section {
+            margin-bottom: 24px;
+        }
+
+        .record-controls {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .record-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .record-btn.start {
+            background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+            color: white;
+        }
+
+        .record-btn.stop {
+            background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+            color: white;
+        }
+
+        .record-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .record-btn.recording {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(74, 222, 128, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+        }
+
+        .keyboard-hint {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-bottom: 20px;
+        }
+
+        .response-area {
+            flex: 1;
+            background: #252525;
+            border-radius: 12px;
+            padding: 24px;
+            overflow-y: auto;
+            border: 1px solid #333;
+        }
+
+        .response-content {
+            line-height: 1.8;
+            font-size: 16px;
+            color: #e5e5e5;
+            min-height: 100%;
+        }
+
+        /* 逐字稿生成界面 */
+        .transcript-generator {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            padding: 24px;
+        }
+
+        .transcript-generator.active {
+            display: flex;
+        }
+
+        .generator-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .generator-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #f5f5f5;
+        }
+
+        .transcript-history-btn {
+            padding: 10px 20px;
+            background: rgba(139, 92, 246, 0.15);
+            border: 1px solid #8b5cf6;
+            border-radius: 8px;
+            color: #8b5cf6;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .transcript-history-btn:hover {
+            background: rgba(139, 92, 246, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .generator-section {
+            margin-bottom: 24px;
+        }
+
+        .generate-controls {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .generate-btn {
+            padding: 16px 32px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+        }
+
+        .generate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .transcript-area {
+            flex: 1;
+            background: #252525;
+            border-radius: 12px;
+            padding: 24px;
+            overflow-y: auto;
+            border: 1px solid #333;
+        }
+
+        .transcript-content {
+            line-height: 1.8;
+            font-size: 16px;
+            color: #e5e5e5;
+            min-height: 100%;
+        }
+
+        /* 配置相关样式 */
+        .config-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #404040;
+        }
+
+        .config-tab {
+            padding: 12px 16px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: #999;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .config-tab.active {
+            color: #f5f5f5;
+            border-bottom-color: #666;
+        }
+
+        .config-tab:hover {
+            color: #e5e5e5;
+        }
+
+        .config-content-tab {
+            display: none;
+        }
+
+        .config-content-tab.active {
+            display: block;
+        }
+
+        .config-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .config-item {
+            background: #2a2a2a;
+            border: 1px solid #404040;
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .config-item:hover {
+            background: #323232;
+            border-color: #555;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .config-item.active {
+            border-color: #666;
+            background: #333;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.1);
+        }
+
+        .config-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .config-item-title {
+            font-weight: 600;
+            color: #f5f5f5;
+            font-size: 14px;
+        }
+
+        .config-item-meta {
+            font-size: 12px;
+            color: #999;
+            line-height: 1.4;
+        }
+
+        .config-item-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 11px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .btn-edit {
+            background: #404040;
+            color: #f5f5f5;
+        }
+
+        .btn-edit:hover {
+            background: #4a4a4a;
+        }
+
+        .btn-delete {
+            background: #3a3a3a;
+            color: #ff6b6b;
+        }
+
+        .btn-delete:hover {
+            background: #444;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #e5e5e5;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #404040;
+            border-radius: 8px;
+            font-size: 13px;
+            transition: all 0.3s;
+            background: #2a2a2a;
+            color: #e5e5e5;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #666;
+            background: #323232;
+            box-shadow: 0 0 0 3px rgba(255,255,255,0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 70px;
+            font-family: inherit;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%);
+            color: #f5f5f5;
+            width: 100%;
+            border: 1px solid #555;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #555 0%, #333 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+        }
+
+        .btn-secondary {
+            background: #404040;
+            color: #e5e5e5;
+            border: 1px solid #555;
+        }
+
+        .btn-secondary:hover {
+            background: #4a4a4a;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        /* Markdown样式 */
+        .response-content h1,
+        .response-content h2,
+        .response-content h3,
+        .response-content h4,
+        .response-content h5,
+        .response-content h6,
+        .transcript-content h1,
+        .transcript-content h2,
+        .transcript-content h3,
+        .transcript-content h4,
+        .transcript-content h5,
+        .transcript-content h6 {
+            color: #f5f5f5;
+            font-weight: 600;
+            margin: 1.5em 0 0.5em 0;
+        }
+
+        .response-content h1,
+        .transcript-content h1 { 
+            font-size: 1.8em; 
+            border-bottom: 2px solid #404040; 
+            padding-bottom: 0.3em; 
+        }
+
+        .response-content h2,
+        .transcript-content h2 { 
+            font-size: 1.5em; 
+            border-bottom: 1px solid #404040; 
+            padding-bottom: 0.3em; 
+        }
+
+        .response-content h3,
+        .transcript-content h3 { 
+            font-size: 1.3em; 
+        }
+
+        .response-content p,
+        .transcript-content p {
+            margin: 1em 0;
+            color: #d1d1d1;
+        }
+
+        .response-content ul,
+        .response-content ol,
+        .transcript-content ul,
+        .transcript-content ol {
+            margin: 1em 0;
+            padding-left: 2em;
+            color: #d1d1d1;
+        }
+
+        .response-content li,
+        .transcript-content li {
+            margin: 0.5em 0;
+        }
+
+        .response-content strong,
+        .transcript-content strong {
+            color: #f5f5f5;
+            font-weight: 600;
+        }
+
+        .response-content code,
+        .transcript-content code {
+            background: #1a1a1a;
+            color: #4ade80;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 0.9em;
+            border: 1px solid #404040;
+        }
+
+        /* 模态窗样式 */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1e1e1e;
+            border-radius: 16px;
+            padding: 24px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid #333;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #404040;
+        }
+
+        .modal-title {
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #f5f5f5;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close-btn:hover {
+            color: #f5f5f5;
+        }
+
+        /* 通知徽章样式 */
+        .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #f87171;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+            min-width: 16px;
+            text-align: center;
+        }
+
+        /* 通知样式 */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2a2a2a;
+            border: 1px solid #404040;
+            border-radius: 12px;
+            padding: 16px;
+            min-width: 300px;
+            max-width: 400px;
+            z-index: 2000;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            animation: slideInRight 0.3s ease;
+        }
+
+        .notification-info {
+            border-color: #60a5fa;
+        }
+
+        .notification-warning {
+            border-color: #fbbf24;
+        }
+
+        .notification-error {
+            border-color: #f87171;
+        }
+
+        .notification-success {
+            border-color: #4ade80;
+        }
+
+        .notification-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .notification-message {
+            color: #e5e5e5;
+            font-size: 14px;
+            line-height: 1.4;
+            flex: 1;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.3s;
+        }
+
+        .notification-close:hover {
+            color: #f5f5f5;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes blink {
+            0%, 50% {
+                opacity: 1;
+            }
+            51%, 100% {
+                opacity: 0;
+            }
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #404040;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .config-sidebar {
+                width: 280px;
+            }
+            
+            .config-sidebar.collapsed {
+                margin-left: -240px;
+            }
+            
+            .content-area.expanded {
+                margin-left: -240px;
+            }
+
+            .record-btn {
+                width: 60px;
+                height: 60px;
+                font-size: 20px;
+            }
+
+            .nav-tabs {
+                gap: 4px;
+            }
+
+            .nav-tab {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <div class="top-navbar">
+            <div class="nav-brand">面试助手</div>
+            
+            <div class="nav-tabs">
+                <div class="nav-tab active" onclick="switchMainTab('interview')" id="interviewTab">
+                    面试辅助
+                </div>
+                <div class="nav-tab" onclick="switchMainTab('transcript')" id="transcriptTab">
+                    逐字稿生成
+                </div>
+            </div>
+            
+            <div class="nav-user-info">
+                <span class="user-name" id="userInfo">加载中...</span>
+                <button class="logout-btn" onclick="logout()">退出登录</button>
+            </div>
+        </div>
+
+        <!-- 主要内容区域 -->
+        <div class="main-container">
+            <!-- 左侧配置面板 -->
+            <div class="config-sidebar" id="configSidebar">
+                <div class="config-header">
+                    <div class="config-title">面试配置</div>
+                    <button class="config-toggle" onclick="toggleConfigSidebar()" id="configToggle">
+                        ◀
+                    </button>
+                </div>
+                
+                <div class="config-content">
+                    <!-- 标签页 -->
+                    <div class="config-tabs">
+                        <button class="config-tab active" onclick="switchConfigTab('configs')">我的配置</button>
+                        <button class="config-tab" onclick="switchConfigTab('editor')">编辑配置</button>
+                    </div>
+
+                    <!-- 配置列表 -->
+                    <div class="config-content-tab active" id="configsTab">
+                        <div class="config-list" id="configList">
+                            <!-- 配置项将通过JavaScript动态加载 -->
+                        </div>
+                        <button class="btn btn-primary" onclick="newConfig()">
+                            ➕ 新建配置
+                        </button>
+                    </div>
+
+                    <!-- 配置编辑器 -->
+                    <div class="config-content-tab" id="editorTab">
+                        <form id="configForm">
+                            <input type="hidden" id="configId">
+                            
+                            <div class="form-group">
+                                <label for="configName">配置名称</label>
+                                <input type="text" id="configName" placeholder="为这个配置起个名字">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="name">姓名</label>
+                                <input type="text" id="name" placeholder="请输入您的姓名">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="position">专业背景</label>
+                                <input type="text" id="position" placeholder="如：前端工程师、产品经理等">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="company">目标公司</label>
+                                <input type="text" id="company" placeholder="请输入要面试的公司名称">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="jobTitle">面试岗位</label>
+                                <input type="text" id="jobTitle" placeholder="请输入具体的岗位名称">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="resume">简历概要</label>
+                                <textarea id="resume" placeholder="请简要描述您的工作经历、技能和成就..."></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="detailedExperience">详细工作经历</label>
+                                <textarea id="detailedExperience" placeholder="请详细描述您的项目经历、技术细节、成果数据等..." style="min-height: 100px;"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="jobDescription">岗位JD</label>
+                                <textarea id="jobDescription" placeholder="请粘贴目标岗位的职位描述..."></textarea>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" onclick="cancelEdit()">取消</button>
+                                <button type="button" class="btn btn-primary" onclick="saveConfig()">保存</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧内容区域 -->
+            <div class="content-area" id="contentArea">
+                <!-- 面试辅助界面 -->
+                <div class="interview-assistant active" id="interviewAssistant">
+                    <div class="assistant-header">
+                        <div class="assistant-title">面试辅助</div>
+                        <button class="history-btn" onclick="showVoiceHistory()" id="historyBtn">
+                            查看历史记录
+                            <span class="notification-badge" id="unreadBadge" style="display: none;">0</span>
+                        </button>
+                    </div>
+
+                    <div class="status-section">
+                        <div id="statusBar" class="status-bar">
+                            💡 请选择或创建一个面试配置，然后开始录音
+                        </div>
+                    </div>
+
+                    <div class="record-section">
+                        <div class="record-controls">
+                            <button id="startBtn" class="record-btn start" onclick="startRecording()">
+                                🎤
+                            </button>
+                            <button id="stopBtn" class="record-btn stop" onclick="stopRecording()" disabled style="display: none;">
+                                ⏹️
+                            </button>
+                        </div>
+
+                        <div class="keyboard-hint">
+                            💡 快捷键：S键开始录音，E键停止录音
+                        </div>
+                    </div>
+
+                    <div class="response-area">
+                        <div id="responseContent" class="response-content">
+欢迎使用面试助手！
+
+📋 **使用步骤**：
+1. 在左侧面板选择或创建面试配置
+2. 点击配置进行激活
+3. 开始录音说出面试官的问题
+4. 等待AI生成专业回答
+
+🎯 AI将基于您的个人信息和岗位要求，生成量身定制的面试回答。
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 逐字稿生成界面 -->
+                <div class="transcript-generator" id="transcriptGenerator">
+                    <div class="generator-header">
+                        <div class="generator-title">逐字稿生成</div>
+                        <button class="transcript-history-btn" onclick="showTranscriptHistory()">
+                            查看历史逐字稿
+                        </button>
+                    </div>
+
+                    <div class="generator-section">
+                        <div class="generate-controls">
+                            <button class="generate-btn" onclick="generateTranscript()" id="generateBtn">
+                                🚀 开始生成逐字稿
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="transcript-area">
+                        <div id="transcriptContent" class="transcript-content">
+欢迎使用逐字稿生成功能！
+
+📝 **功能说明**：
+1. 请先在左侧选择一个面试配置
+2. 点击"开始生成逐字稿"按钮
+3. AI将基于您的简历和岗位JD生成完整的面试逐字稿
+4. 生成的逐字稿将自动保存到历史记录
+
+✨ **逐字稿特色**：
+- 突出技术能力和业务理解
+- 体现清晰的职业规划
+- 展示沟通和学习能力
+- 结合实际项目经验
+- 口语化自然表达
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态窗 -->
+    <!-- 历史记录模态窗 -->
+    <div class="modal" id="historyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">历史记录</h2>
+                <button class="close-btn" onclick="closeHistoryModal()">&times;</button>
+            </div>
+            <div id="historyList">
+                <!-- 历史记录项将通过JavaScript动态加载 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 逐字稿历史模态窗 -->
+    <div class="modal" id="transcriptHistoryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">逐字稿历史记录</h2>
+                <button class="close-btn" onclick="closeTranscriptHistoryModal()">&times;</button>
+            </div>
+            <div id="transcriptHistoryList">
+                <!-- 逐字稿历史记录项将通过JavaScript动态加载 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket连接
+        const socket = io({
+            forceNew: true,
+            reconnection: true,
+            timeout: 300000,
+            reconnectionAttempts: 3,
+            reconnectionDelay: 2000,
+            maxHttpBufferSize: 10000000,
+            pingTimeout: 300000,
+            pingInterval: 60000,
+            transports: ['websocket', 'polling']
+        });
+        
+        // 全局变量
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let currentConfig = null;
+        let configs = [];
+        let isFirstChunk = true;
+        let isProcessing = false;
+        let editingConfig = null;
+        let streamingBuffer = '';
+        let currentRecordId = null;
+        let voiceHistory = [];
+        let transcriptHistory = [];
+        let lastRenderTime = 0;
+        let renderThrottle = 16;
+        let userScrolledUp = false;
+        let autoScrollEnabled = true;
+        let lastScrollTop = 0;
+        let isGeneratingTranscript = false;
+        let transcriptStreamingBuffer = '';
+        let transcriptFirstChunk = true;
+        let currentMainTab = 'interview'; // 当前主要标签页
+
+        // DOM元素
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusBar = document.getElementById('statusBar');
+        const responseContent = document.getElementById('responseContent');
+        const transcriptContent = document.getElementById('transcriptContent');
+
+        // 页面初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面DOM加载完成');
+            
+            loadUserInfo();
+            loadConfigs();
+            loadUnreadCount();
+            renderInitialMarkdown();
+            
+            // 确保按钮状态正确
+            if (startBtn) {
+                startBtn.disabled = false;
+                startBtn.textContent = '🎤';
+                startBtn.classList.remove('recording');
+            }
+            if (stopBtn) {
+                stopBtn.style.display = 'none';
+                stopBtn.disabled = true;
+            }
+            
+            // 添加滚动监听器
+            if (responseContent) {
+                responseContent.addEventListener('scroll', handleUserScroll);
+            }
+        });
+
+        // 主要标签页切换
+        function switchMainTab(tabName) {
+            currentMainTab = tabName;
+            
+            // 更新导航标签状态
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            
+            // 切换内容区域
+            document.querySelectorAll('.interview-assistant, .transcript-generator').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            if (tabName === 'interview') {
+                document.getElementById('interviewAssistant').classList.add('active');
+            } else if (tabName === 'transcript') {
+                document.getElementById('transcriptGenerator').classList.add('active');
+            }
+        }
+
+        // 配置侧边栏切换
+        function toggleConfigSidebar() {
+            const sidebar = document.getElementById('configSidebar');
+            const contentArea = document.getElementById('contentArea');
+            const toggleBtn = document.getElementById('configToggle');
+            
+            if (sidebar.classList.contains('collapsed')) {
+                sidebar.classList.remove('collapsed');
+                contentArea.classList.remove('expanded');
+                toggleBtn.textContent = '◀';
+            } else {
+                sidebar.classList.add('collapsed');
+                contentArea.classList.add('expanded');
+                toggleBtn.textContent = '▶';
+            }
+        }
+
+        // 配置标签页切换
+        function switchConfigTab(tabName) {
+            document.querySelectorAll('.config-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`[onclick="switchConfigTab('${tabName}')"]`).classList.add('active');
+
+            document.querySelectorAll('.config-content-tab').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName + 'Tab').classList.add('active');
+        }
+
+        // 加载用户信息
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/user/profile');
+                const user = await response.json();
+                document.getElementById('userInfo').textContent = `欢迎，${user.username}`;
+            } catch (error) {
+                console.error('加载用户信息失败:', error);
+                document.getElementById('userInfo').textContent = '用户信息加载失败';
+            }
+        }
+
+        // 加载配置列表
+        async function loadConfigs() {
+            try {
+                const response = await fetch('/api/configs');
+                configs = await response.json();
+                renderConfigList();
+            } catch (error) {
+                console.error('加载配置失败:', error);
+                showMessage('配置加载失败', 'error');
+            }
+        }
+
+        // 渲染配置列表
+        function renderConfigList() {
+            const configList = document.getElementById('configList');
+            configList.innerHTML = '';
+
+            if (configs.length === 0) {
+                configList.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">暂无配置，点击下方按钮创建</p>';
+                return;
+            }
+
+            configs.forEach(config => {
+                const configItem = document.createElement('div');
+                configItem.className = `config-item ${currentConfig?.id === config.id ? 'active' : ''}`;
+                configItem.onclick = () => selectConfig(config);
+                
+                configItem.innerHTML = `
+                    <div class="config-item-header">
+                        <div class="config-item-title">${config.name}</div>
+                        <div class="config-item-actions">
+                            <button class="btn-small btn-edit" onclick="editConfig(${config.id}, event)">编辑</button>
+                            <button class="btn-small btn-delete" onclick="deleteConfig(${config.id}, event)">删除</button>
+                        </div>
+                    </div>
+                    <div class="config-item-meta">
+                        ${config.candidate_name} - ${config.position}<br>
+                        ${config.company} / ${config.job_title}
+                    </div>
+                `;
+                
+                configList.appendChild(configItem);
+            });
+        }
+
+        // 选择配置
+        function selectConfig(config) {
+            currentConfig = config;
+            renderConfigList();
+            
+            // 更新状态栏
+            if (currentMainTab === 'interview') {
+                statusBar.className = 'status-bar';
+                statusBar.innerHTML = `✅ 已选择配置：${config.name} (${config.candidate_name})`;
+            }
+        }
+
+        // 新建配置
+        function newConfig() {
+            editingConfig = null;
+            clearForm();
+            switchConfigTab('editor');
+        }
+
+        // 编辑配置
+        function editConfig(configId, event) {
+            event.stopPropagation();
+            editingConfig = configs.find(c => c.id === configId);
+            if (editingConfig) {
+                fillForm(editingConfig);
+                switchConfigTab('editor');
+            }
+        }
+
+        // 删除配置
+        async function deleteConfig(configId, event) {
+            event.stopPropagation();
+            
+            if (!confirm('确定要删除这个配置吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/configs/${configId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    await loadConfigs();
+                    if (currentConfig?.id === configId) {
+                        currentConfig = null;
+                        if (currentMainTab === 'interview') {
+                            statusBar.className = 'status-bar';
+                            statusBar.textContent = '💡 请选择或创建一个面试配置，然后开始录音';
+                        }
+                    }
+                    showNotification('配置删除成功', 'success');
+                } else {
+                    const error = await response.json();
+                    showNotification(error.error || '删除失败', 'error');
+                }
+            } catch (error) {
+                console.error('删除配置失败:', error);
+                showNotification('删除配置失败', 'error');
+            }
+        }
+
+        // 保存配置
+        async function saveConfig() {
+            const formData = getFormData();
+            
+            const requiredFields = ['name', 'candidate_name', 'position', 'company', 'job_title'];
+            for (const field of requiredFields) {
+                if (!formData[field]) {
+                    showNotification(`请填写${getFieldLabel(field)}`, 'error');
+                    return;
+                }
+            }
+
+            try {
+                let response;
+                if (editingConfig) {
+                    response = await fetch(`/api/configs/${editingConfig.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+                } else {
+                    response = await fetch('/api/configs', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+                }
+
+                if (response.ok) {
+                    const savedConfig = await response.json();
+                    await loadConfigs();
+                    selectConfig(savedConfig);
+                    switchConfigTab('configs');
+                    showNotification(editingConfig ? '配置更新成功' : '配置创建成功', 'success');
+                } else {
+                    const error = await response.json();
+                    showNotification(error.error || '保存失败', 'error');
+                }
+            } catch (error) {
+                console.error('保存配置失败:', error);
+                showNotification('保存配置失败', 'error');
+            }
+        }
+
+        // 取消编辑
+        function cancelEdit() {
+            clearForm();
+            switchConfigTab('configs');
+        }
+
+        // 获取表单数据
+        function getFormData() {
+            return {
+                name: document.getElementById('configName').value.trim(),
+                candidate_name: document.getElementById('name').value.trim(),
+                position: document.getElementById('position').value.trim(),
+                company: document.getElementById('company').value.trim(),
+                job_title: document.getElementById('jobTitle').value.trim(),
+                resume: document.getElementById('resume').value.trim(),
+                detailed_experience: document.getElementById('detailedExperience').value.trim(),
+                job_description: document.getElementById('jobDescription').value.trim()
+            };
+        }
+
+        // 填充表单
+        function fillForm(config) {
+            document.getElementById('configName').value = config.name || '';
+            document.getElementById('name').value = config.candidate_name || '';
+            document.getElementById('position').value = config.position || '';
+            document.getElementById('company').value = config.company || '';
+            document.getElementById('jobTitle').value = config.job_title || '';
+            document.getElementById('resume').value = config.resume || '';
+            document.getElementById('detailedExperience').value = config.detailed_experience || '';
+            document.getElementById('jobDescription').value = config.job_description || '';
+        }
+
+        // 清空表单
+        function clearForm() {
+            document.getElementById('configForm').reset();
+        }
+
+        // 获取字段标签
+        function getFieldLabel(field) {
+            const labels = {
+                name: '配置名称',
+                candidate_name: '姓名',
+                position: '专业背景',
+                company: '目标公司',
+                job_title: '面试岗位'
+            };
+            return labels[field] || field;
+        }
+
+        // 显示消息
+        function showMessage(message, type = 'info') {
+            if (currentMainTab === 'interview') {
+                statusBar.className = `status-bar ${type}`;
+                statusBar.innerHTML = `${type === 'error' ? '❌' : '✅'} ${message}`;
+            }
+        }
+
+        // 退出登录
+        function logout() {
+            if (confirm('确定要退出登录吗？')) {
+                window.location.href = '/logout';
+            }
+        }
+
+        // 加载未读消息数量
+        async function loadUnreadCount() {
+            try {
+                const response = await fetch('/api/voice-records/unread-count');
+                const data = await response.json();
+                updateUnreadBadge(data.count);
+            } catch (error) {
+                console.error('加载未读消息数量失败:', error);
+            }
+        }
+
+        // 更新未读消息徽章
+        function updateUnreadBadge(count) {
+            const badge = document.getElementById('unreadBadge');
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : count;
+                badge.style.display = 'block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        // 显示历史记录
+        function showVoiceHistory() {
+            loadVoiceHistory();
+            document.getElementById('historyModal').classList.add('show');
+        }
+
+        // 关闭历史记录模态窗
+        function closeHistoryModal() {
+            document.getElementById('historyModal').classList.remove('show');
+        }
+
+        // 显示逐字稿历史记录
+        function showTranscriptHistory() {
+            loadTranscriptHistory();
+            document.getElementById('transcriptHistoryModal').classList.add('show');
+        }
+
+        // 关闭逐字稿历史记录模态窗
+        function closeTranscriptHistoryModal() {
+            document.getElementById('transcriptHistoryModal').classList.remove('show');
+        }
+
+        // 加载历史记录
+        async function loadVoiceHistory() {
+            try {
+                const response = await fetch('/api/voice-records?per_page=20');
+                const data = await response.json();
+                voiceHistory = data.records;
+                renderHistoryList(voiceHistory);
+            } catch (error) {
+                console.error('加载历史记录失败:', error);
+                showNotification('历史记录加载失败', 'error');
+            }
+        }
+
+        // 加载逐字稿历史记录
+        async function loadTranscriptHistory() {
+            try {
+                const response = await fetch('/api/transcripts?per_page=20');
+                const data = await response.json();
+                transcriptHistory = data.transcripts;
+                renderTranscriptHistoryList(transcriptHistory);
+            } catch (error) {
+                console.error('加载逐字稿历史记录失败:', error);
+                showNotification('逐字稿历史记录加载失败', 'error');
+            }
+        }
+
+        // 渲染历史记录列表
+        function renderHistoryList(records) {
+            const historyList = document.getElementById('historyList');
+            
+            if (records.length === 0) {
+                historyList.innerHTML = '<p style="text-align: center; color: #999; padding: 40px 20px;">暂无历史记录</p>';
+                return;
+            }
+
+            historyList.innerHTML = records.map(record => `
+                <div class="config-item ${!record.is_read ? 'unread' : ''}" onclick="viewHistoryDetail(${record.id})" style="cursor: pointer;">
+                    <div class="config-item-header">
+                        <div class="config-item-title">${record.question || '语音问题'}</div>
+                        <div style="font-size: 12px; color: #999;">${formatDateTime(record.created_at)}</div>
+                    </div>
+                    <div class="config-item-meta">
+                        ${record.answer ? record.answer.substring(0, 100).replace(/[#*`]/g, '') + (record.answer.length > 100 ? '...' : '') : '无回答内容'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 渲染逐字稿历史记录列表
+        function renderTranscriptHistoryList(transcripts) {
+            const transcriptHistoryList = document.getElementById('transcriptHistoryList');
+            
+            if (transcripts.length === 0) {
+                transcriptHistoryList.innerHTML = '<p style="text-align: center; color: #999; padding: 40px 20px;">暂无逐字稿记录</p>';
+                return;
+            }
+
+            transcriptHistoryList.innerHTML = transcripts.map(transcript => `
+                <div class="config-item" onclick="viewTranscriptDetail(${transcript.id})" style="cursor: pointer;">
+                    <div class="config-item-header">
+                        <div class="config-item-title">${transcript.title}</div>
+                        <div style="font-size: 12px; color: #999;">${formatDateTime(transcript.created_at)}</div>
+                    </div>
+                    <div class="config-item-meta">
+                        ${transcript.company} / ${transcript.job_title}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 查看历史记录详情
+        async function viewHistoryDetail(recordId) {
+            try {
+                const response = await fetch(`/api/voice-records/${recordId}`);
+                const record = await response.json();
+                
+                await fetch(`/api/voice-records/${recordId}/mark-read`, { method: 'POST' });
+                
+                const modal = document.getElementById('historyModal');
+                const modalContent = modal.querySelector('.modal-content');
+                
+                modalContent.innerHTML = `
+                    <div class="modal-header">
+                        <h2 class="modal-title">记录详情</h2>
+                        <button class="close-btn" onclick="closeHistoryModal()">&times;</button>
+                    </div>
+                    <button onclick="showVoiceHistory()" style="margin-bottom: 16px; padding: 8px 16px; background: #404040; color: #e5e5e5; border: none; border-radius: 6px; cursor: pointer;">← 返回列表</button>
+                    <div style="background: #252525; border-radius: 12px; padding: 20px; border: 1px solid #404040;">
+                        <div style="margin-bottom: 16px;">
+                            <strong>时间：</strong> ${formatDateTime(record.created_at)}<br>
+                            <strong>状态：</strong> ${getStatusText(record.status)}<br>
+                            ${record.config_name ? `<strong>配置：</strong> ${record.config_name}<br>` : ''}
+                        </div>
+                        <div style="margin-bottom: 16px;">
+                            <strong>问题：</strong><br>
+                            <div style="background: #1a1a1a; padding: 12px; border-radius: 8px; margin-top: 8px;">
+                                ${record.question || '语音问题'}
+                            </div>
+                        </div>
+                        <div>
+                            <strong>回答：</strong><br>
+                            <div style="background: #1a1a1a; padding: 12px; border-radius: 8px; margin-top: 8px;">
+                                ${record.answer ? renderMarkdownContent(record.answer) : '无回答内容'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                loadUnreadCount();
+                
+            } catch (error) {
+                console.error('获取历史记录详情失败:', error);
+                showNotification('获取详情失败', 'error');
+            }
+        }
+
+        // 查看逐字稿详情
+        async function viewTranscriptDetail(transcriptId) {
+            try {
+                const response = await fetch(`/api/transcripts/${transcriptId}`);
+                const transcript = await response.json();
+                
+                const modal = document.getElementById('transcriptHistoryModal');
+                const modalContent = modal.querySelector('.modal-content');
+                
+                modalContent.innerHTML = `
+                    <div class="modal-header">
+                        <h2 class="modal-title">逐字稿详情</h2>
+                        <button class="close-btn" onclick="closeTranscriptHistoryModal()">&times;</button>
+                    </div>
+                    <button onclick="showTranscriptHistory()" style="margin-bottom: 16px; padding: 8px 16px; background: #404040; color: #e5e5e5; border: none; border-radius: 6px; cursor: pointer;">← 返回列表</button>
+                    <div style="background: #252525; border-radius: 12px; padding: 20px; border: 1px solid #404040;">
+                        <div style="margin-bottom: 16px;">
+                            <strong>标题：</strong> ${transcript.title}<br>
+                            <strong>时间：</strong> ${formatDateTime(transcript.created_at)}<br>
+                            <strong>状态：</strong> ${getStatusText(transcript.status)}<br>
+                        </div>
+                        <div>
+                            <strong>内容：</strong><br>
+                            <div style="background: #1a1a1a; padding: 12px; border-radius: 8px; margin-top: 8px; max-height: 60vh; overflow-y: auto;">
+                                ${renderMarkdownContent(transcript.content)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('获取逐字稿详情失败:', error);
+                showNotification('获取逐字稿详情失败', 'error');
+            }
+        }
+
+        // 格式化日期时间
+        function formatDateTime(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) {
+                return '刚刚';
+            } else if (diff < 3600000) {
+                return Math.floor(diff / 60000) + '分钟前';
+            } else if (diff < 86400000) {
+                return Math.floor(diff / 3600000) + '小时前';
+            } else {
+                return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            }
+        }
+
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                'generating': '生成中',
+                'completed': '已完成',
+                'interrupted': '已中断',
+                'failed': '失败'
+            };
+            return statusMap[status] || status;
+        }
+
+        // 显示通知
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.innerHTML = `
+                <div class="notification-content">
+                    <span class="notification-message">${message}</span>
+                    <button class="notification-close" onclick="closeNotification(this)">×</button>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 5000);
+        }
+
+        // 关闭通知
+        function closeNotification(button) {
+            const notification = button.closest('.notification');
+            if (notification && notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }
+
+        // 渲染初始Markdown内容
+        function renderInitialMarkdown() {
+            if (responseContent) {
+                const content = responseContent.textContent;
+                responseContent.innerHTML = renderMarkdownContent(content);
+            }
+            if (transcriptContent) {
+                const content = transcriptContent.textContent;
+                transcriptContent.innerHTML = renderMarkdownContent(content);
+            }
+        }
+
+        // 渲染Markdown内容
+        function renderMarkdownContent(text) {
+            if (!text) return '';
+            
+            try {
+                if (typeof marked !== 'undefined') {
+                    if (typeof marked.parse === 'function') {
+                        return marked.parse(text);
+                    } else if (typeof marked === 'function') {
+                        return marked(text);
+                    }
+                }
+                
+                return simpleMarkdownToHtml(text);
+                
+            } catch (error) {
+                console.error('Markdown渲染失败:', error);
+                return simpleMarkdownToHtml(text);
+            }
+        }
+        
+        // 简单的Markdown转HTML函数
+        function simpleMarkdownToHtml(text) {
+            return text
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+                .replace(/\n/g, '<br>')
+                .replace(/^\* (.*$)/gim, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+        }
+
+        // 生成逐字稿
+        function generateTranscript() {
+            console.log('生成逐字稿按钮被点击');
+            
+            if (!currentConfig) {
+                showNotification('请先选择一个面试配置', 'error');
+                return;
+            }
+            
+            if (isGeneratingTranscript) {
+                showNotification('逐字稿正在生成中，请稍候', 'warning');
+                return;
+            }
+            
+            // 禁用按钮
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = true;
+            generateBtn.textContent = '🔄 正在生成...';
+            
+            // 清空逐字稿内容区域
+            transcriptContent.innerHTML = '<p style="color: #fbbf24;">正在生成逐字稿，请稍候...</p>';
+            
+            // 发送逐字稿生成请求
+            const transcriptData = {
+                configId: currentConfig ? currentConfig.id : null,
+                userInfo: {
+                    name: currentConfig.candidate_name,
+                    position: currentConfig.position,
+                    company: currentConfig.company,
+                    job_title: currentConfig.job_title,
+                    resume: currentConfig.resume,
+                    detailed_experience: currentConfig.detailed_experience,
+                    job_description: currentConfig.job_description
+                }
+            };
+            
+            console.log('发送逐字稿生成请求:', transcriptData);
+            
+            try {
+                socket.emit('generate_transcript', transcriptData);
+                console.log('逐字稿生成请求已发送');
+            } catch (error) {
+                console.error('发送逐字稿生成请求失败:', error);
+                showNotification('发送逐字稿生成请求失败: ' + error.message, 'error');
+                
+                // 恢复按钮状态
+                generateBtn.disabled = false;
+                generateBtn.textContent = '🚀 开始生成逐字稿';
+            }
+        }
+
+        // 录音相关函数 - 简化版本，完整代码太长，这里只包含核心部分
+        async function startRecording() {
+            if (!currentConfig) {
+                showNotification('请先选择一个面试配置', 'error');
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: 16000,
+                        sampleSize: 16,
+                        channelCount: 1
+                    } 
+                });
+                
+                const mimeTypes = [
+                    'audio/wav',
+                    'audio/webm;codecs=pcm',
+                    'audio/ogg;codecs=opus',
+                    'audio/webm;codecs=opus',
+                    'audio/webm'
+                ];
+                
+                let selectedMimeType = '';
+                for (const mimeType of mimeTypes) {
+                    if (MediaRecorder.isTypeSupported(mimeType)) {
+                        selectedMimeType = mimeType;
+                        break;
+                    }
+                }
+                
+                if (!selectedMimeType) {
+                    throw new Error('浏览器不支持音频录制');
+                }
+                
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: selectedMimeType,
+                    audioBitsPerSecond: 32000
+                });
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = function(event) {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = function() {
+                    if (audioChunks.length === 0) {
+                        showNotification('录音失败：没有录制到音频数据', 'error');
+                        return;
+                    }
+                    
+                    const audioBlob = new Blob(audioChunks, { type: selectedMimeType });
+                    
+                    if (audioBlob.size < 1000) {
+                        showNotification('录音时间太短或音频质量有问题，请重新录制', 'error');
+                        return;
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        processAudio(reader.result);
+                    };
+                    reader.readAsDataURL(audioBlob);
+                };
+                
+                mediaRecorder.start(1000);
+                isRecording = true;
+                
+                startBtn.disabled = true;
+                startBtn.classList.add('recording');
+                stopBtn.disabled = false;
+                stopBtn.style.display = 'flex';
+                
+                statusBar.className = 'status-bar recording';
+                statusBar.innerHTML = `🎤 正在录音中...请清晰地说出面试官的问题`;
+                
+            } catch (error) {
+                console.error('录音启动失败:', error);
+                let errorMsg = '录音失败：';
+                if (error.name === 'NotAllowedError') {
+                    errorMsg += '请允许浏览器访问麦克风';
+                } else if (error.name === 'NotFoundError') {
+                    errorMsg += '未找到可用的麦克风设备';
+                } else {
+                    errorMsg += error.message;
+                }
+                showNotification(errorMsg, 'error');
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                
+                isRecording = false;
+                startBtn.disabled = false;
+                startBtn.classList.remove('recording');
+                stopBtn.disabled = true;
+                stopBtn.style.display = 'none';
+                
+                statusBar.className = 'status-bar processing';
+                statusBar.textContent = '⏳ 录音完成，正在处理...';
+            }
+        }
+
+        function processAudio(audioData) {
+            if (!currentConfig) {
+                showNotification('请先选择一个面试配置', 'error');
+                return;
+            }
+            
+            if (!audioData) {
+                showNotification('音频数据无效', 'error');
+                return;
+            }
+            
+            const audioSizeMB = audioData.length / (1024 * 1024);
+            
+            if (audioSizeMB > 8) {
+                showNotification('音频文件过大，建议缩短录音时间', 'error');
+                return;
+            }
+            
+            isFirstChunk = true;
+            streamingBuffer = '';
+            
+            responseContent.innerHTML = '<p style="color: #fbbf24;">正在分析您的问题，请稍候...</p>';
+            
+            const audioProcessData = {
+                audio: audioData,
+                configId: currentConfig ? currentConfig.id : null,
+                userInfo: {
+                    name: currentConfig.candidate_name,
+                    position: currentConfig.position,
+                    company: currentConfig.company,
+                    job_title: currentConfig.job_title,
+                    resume: currentConfig.resume,
+                    detailed_experience: currentConfig.detailed_experience,
+                    job_description: currentConfig.job_description
+                }
+            };
+            
+            try {
+                socket.emit('process_audio', audioProcessData);
+            } catch (error) {
+                console.error('发送音频处理请求失败:', error);
+                showNotification('发送音频处理请求失败: ' + error.message, 'error');
+            }
+        }
+
+        // WebSocket事件处理 - 简化版本
+        socket.on('connect', function() {
+            console.log('已连接到服务器');
+        });
+
+        socket.on('processing_start', function(data) {
+            isProcessing = true;
+            isFirstChunk = true;
+            streamingBuffer = '';
+            statusBar.className = 'status-bar processing';
+            statusBar.textContent = '🤖 ' + data.message;
+        });
+
+        socket.on('response_chunk', function(data) {
+            if (isFirstChunk) {
+                responseContent.innerHTML = '';
+                isFirstChunk = false;
+            }
+            
+            streamingBuffer += data.text;
+            processStreamingOutputImmediate();
+        });
+
+        socket.on('response_complete', function(data) {
+            isProcessing = false;
+            statusBar.className = 'status-bar';
+            statusBar.textContent = '✅ 回答生成完成';
+            
+            const fullText = data.full_text || streamingBuffer;
+            
+            if (fullText) {
+                const htmlContent = renderMarkdownContent(fullText);
+                responseContent.innerHTML = htmlContent;
+            }
+            
+            streamingBuffer = '';
+            
+            startBtn.disabled = false;
+            startBtn.textContent = '🎤';
+            startBtn.classList.remove('recording');
+            stopBtn.style.display = 'none';
+            stopBtn.disabled = true;
+            
+            if (data.record_id) {
+                showNotification('语音回答已保存到历史记录', 'success');
+            }
+        });
+
+        socket.on('transcript_processing_start', function(data) {
+            isGeneratingTranscript = true;
+            transcriptFirstChunk = true;
+            transcriptStreamingBuffer = '';
+            
+            transcriptContent.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: #fbbf24;">
+                    <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid #404040; border-radius: 50%; border-top-color: #fbbf24; animation: spin 1s ease-in-out infinite; margin-right: 10px;"></div>
+                    ${data.message}
+                </div>
+            `;
+        });
+
+        socket.on('transcript_response_chunk', function(data) {
+            if (transcriptFirstChunk) {
+                transcriptContent.innerHTML = '';
+                transcriptFirstChunk = false;
+            }
+            
+            transcriptStreamingBuffer += data.text;
+            processTranscriptStreamingOutput();
+        });
+
+        socket.on('transcript_response_complete', function(data) {
+            isGeneratingTranscript = false;
+            
+            const fullTranscript = data.full_text || transcriptStreamingBuffer;
+            
+            if (fullTranscript) {
+                const htmlContent = renderMarkdownContent(fullTranscript);
+                transcriptContent.innerHTML = htmlContent;
+            }
+            
+            transcriptStreamingBuffer = '';
+            
+            // 恢复按钮状态
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = false;
+            generateBtn.textContent = '🚀 开始生成逐字稿';
+            
+            showNotification('面试逐字稿生成完成！', 'success');
+        });
+
+        socket.on('transcript_error', function(data) {
+            isGeneratingTranscript = false;
+            
+            transcriptContent.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: #f87171;">
+                    <h3>❌ 逐字稿生成失败</h3>
+                    <p>${data.message}</p>
+                </div>
+            `;
+            
+            // 恢复按钮状态
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = false;
+            generateBtn.textContent = '🚀 开始生成逐字稿';
+            
+            showNotification('逐字稿生成失败: ' + data.message, 'error');
+        });
+
+        socket.on('error', function(data) {
+            isProcessing = false;
+            statusBar.className = 'status-bar error';
+            statusBar.textContent = '❌ ' + data.message;
+            
+            if (startBtn) {
+                startBtn.disabled = false;
+                startBtn.textContent = '🎤';
+                startBtn.classList.remove('recording');
+            }
+            if (stopBtn) {
+                stopBtn.style.display = 'none';
+                stopBtn.disabled = true;
+            }
+        });
+
+        // 流式输出处理
+        function processStreamingOutputImmediate() {
+            if (isProcessing && streamingBuffer) {
+                try {
+                    const hasCompleteMarkdown = /###\s+[^\n]+|^\*\s+\*\*[^*]+\*\*|^\d+\.\s+\*\*[^*]+\*\*/m.test(streamingBuffer);
+                    const isLongText = streamingBuffer.length > 300;
+                    const shouldRenderMarkdown = hasCompleteMarkdown || isLongText;
+                    
+                    if (shouldRenderMarkdown) {
+                        const htmlContent = renderMarkdownContent(streamingBuffer);
+                        requestAnimationFrame(() => {
+                            responseContent.innerHTML = htmlContent;
+                            
+                            if (isProcessing) {
+                                const cursor = document.createElement('span');
+                                cursor.style.cssText = 'animation: blink 1s infinite; color: #4ade80;';
+                                cursor.textContent = '▊';
+                                responseContent.appendChild(cursor);
+                            }
+                            
+                            scrollToBottom();
+                        });
+                    } else {
+                        requestAnimationFrame(() => {
+                            responseContent.textContent = streamingBuffer;
+                            
+                            if (isProcessing) {
+                                const cursor = document.createElement('span');
+                                cursor.style.cssText = 'animation: blink 1s infinite; color: #4ade80; margin-left: 2px;';
+                                cursor.textContent = '▊';
+                                responseContent.appendChild(cursor);
+                            }
+                            
+                            scrollToBottom();
+                        });
+                    }
+                } catch (error) {
+                    console.error('流式渲染失败:', error);
+                    requestAnimationFrame(() => {
+                        responseContent.textContent = streamingBuffer;
+                        scrollToBottom();
+                    });
+                }
+            }
+        }
+
+        function processTranscriptStreamingOutput() {
+            if (isGeneratingTranscript && transcriptStreamingBuffer) {
+                try {
+                    const shouldRenderMarkdown = transcriptStreamingBuffer.length > 200;
+                    
+                    if (shouldRenderMarkdown) {
+                        const htmlContent = renderMarkdownContent(transcriptStreamingBuffer);
+                        transcriptContent.innerHTML = htmlContent;
+                        
+                        if (isGeneratingTranscript) {
+                            const cursor = document.createElement('span');
+                            cursor.style.cssText = 'animation: blink 1s infinite; color: #4ade80;';
+                            cursor.textContent = '▊';
+                            transcriptContent.appendChild(cursor);
+                        }
+                    } else {
+                        transcriptContent.textContent = transcriptStreamingBuffer;
+                        
+                        if (isGeneratingTranscript) {
+                            const cursor = document.createElement('span');
+                            cursor.style.cssText = 'animation: blink 1s infinite; color: #4ade80; margin-left: 2px;';
+                            cursor.textContent = '▊';
+                            transcriptContent.appendChild(cursor);
+                        }
+                    }
+                    
+                    transcriptContent.scrollTop = transcriptContent.scrollHeight;
+                } catch (error) {
+                    console.error('逐字稿流式渲染失败:', error);
+                    transcriptContent.textContent = transcriptStreamingBuffer;
+                }
+            }
+        }
+
+        // 滚动处理
+        function handleUserScroll() {
+            const scrollTop = responseContent.scrollTop;
+            const scrollHeight = responseContent.scrollHeight;
+            const clientHeight = responseContent.clientHeight;
+            
+            const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+            
+            if (distanceFromBottom <= 30) {
+                userScrolledUp = false;
+                autoScrollEnabled = true;
+            } else if (scrollTop < lastScrollTop - 10) {
+                userScrolledUp = true;
+                autoScrollEnabled = false;
+            }
+            
+            lastScrollTop = scrollTop;
+        }
+
+        function scrollToBottom(force = false) {
+            if (force || autoScrollEnabled) {
+                responseContent.scrollTop = responseContent.scrollHeight;
+                userScrolledUp = false;
+                autoScrollEnabled = true;
+            }
+        }
+
+        // 键盘快捷键
+        document.addEventListener('keydown', function(event) {
+            const activeElement = document.activeElement;
+            const isInputting = activeElement && (
+                activeElement.tagName === 'INPUT' || 
+                activeElement.tagName === 'TEXTAREA' ||
+                activeElement.contentEditable === 'true'
+            );
+            
+            if (isInputting) return;
+            
+            if (currentMainTab === 'interview') {
+                if (event.key.toLowerCase() === 's' && !isRecording) {
+                    event.preventDefault();
+                    startRecording();
+                } else if (event.key.toLowerCase() === 'e' && isRecording) {
+                    event.preventDefault();
+                    stopRecording();
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>

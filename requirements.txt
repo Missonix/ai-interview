@@ -1,0 +1,3 @@
+google-generativeai>=0.8.0
+pyaudio>=0.2.11
+asyncio 
